@@ -1,0 +1,38 @@
+# === Directorios generados — no subir a git ===
+data/
+models/
+logs/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+env/
+venv/
+
+# === Jupyter ===
+.ipynb_checkpoints/
+
+# === IDEs ===
+.vscode/
+.idea/
+*.suo
+*.user
+
+# === Sistema ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Pesos de modelos grandes ===
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# === Logs y temporales ===
+*.log
+*.tmp

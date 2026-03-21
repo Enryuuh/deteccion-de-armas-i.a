@@ -1,0 +1,39 @@
+# ============================================================
+# Detección de Armas — Requirements
+# Licencias: Apache 2.0 / BSD / MIT (100% libre)
+# GPU: NVIDIA RTX 4060 — CUDA 12.x
+# ============================================================
+
+# --- Deep Learning Core ---
+torch>=2.2.0
+torchvision>=0.17.0
+torchaudio>=2.2.0
+
+# --- Modelo RT-DETR (Apache 2.0) ---
+transformers>=4.40.0
+accelerate>=0.28.0
+
+# --- Dataset Open Images v7 (descarga y manejo) ---
+fiftyone>=0.23.0
+
+# --- Visión y procesamiento ---
+opencv-python>=4.9.0
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# --- Entrenamiento y métricas ---
+pycocotools>=2.0.7
+scipy>=1.12.0
+matplotlib>=3.8.0
+tqdm>=4.66.0
+pyyaml>=6.0.0
+
+# --- Alertas (sonido) ---
+playsound>=1.3.0
+pygame>=2.5.0
+
+# --- Logging y visualización de entrenamiento ---
+tensorboard>=2.16.0
+
+# --- Utilitarios ---
+supervision>=0.20.0

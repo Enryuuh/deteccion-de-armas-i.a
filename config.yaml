@@ -1,0 +1,51 @@
+model:
+  name: "PekingU/rtdetr_r50vd"   # RT-DETR-R50 — Apache 2.0, equilibrio ideal para RTX 4060
+  num_classes: 3                  # 0: background, 1: knife, 2: firearm
+  image_size: 640                 # Resolución de entrada (múltiplo de 32)
+
+classes:
+  - "knife"
+  - "firearm"
+
+dataset:
+  open_images_classes:
+    - "Knife"
+    - "Firearm"
+    - "Handgun"
+    - "Shotgun"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_split: 0.8
+  val_split: 0.15
+  test_split: 0.05
+  max_samples_per_class: 2000    # Limitar para no saturar disco
+
+training:
+  output_dir: "models/rtdetr_weapons"
+  num_epochs: 50
+  batch_size: 8                  # Óptimo para RTX 4060 8GB con FP16
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  warmup_steps: 500
+  fp16: true                     # Mixed precision — maximiza la RTX 4060
+  gradient_accumulation_steps: 2
+  eval_steps: 500
+  save_steps: 500
+  save_total_limit: 3
+  dataloader_num_workers: 4
+  seed: 42
+
+inference:
+  confidence_threshold: 0.50     # Umbral mínimo de confianza
+  iou_threshold: 0.45            # Umbral NMS
+  camera_index: 0                # 0 = webcam principal
+  display_fps: true
+  alert_cooldown_seconds: 5      # Espera entre alertas repetidas
+
+alerts:
+  sound_enabled: true
+  sound_file: "assets/alert.wav"
+  log_detections: true
+  log_file: "logs/detections.log"
+  save_frames: true              # Guardar frames cuando detecta arma
+  frames_dir: "logs/frames"
