@@ -1,39 +1,36 @@
 # ============================================================
-# Detección de Armas — Requirements
-# Licencias: Apache 2.0 / BSD / MIT (100% libre)
-# GPU: NVIDIA RTX 4060 — CUDA 12.x
+# Deteccion de Armas - Requirements (YOLOv8 + ONNX/NCNN)
+# Licencias: AGPL-3.0 (ultralytics) / Apache 2.0 / BSD / MIT
+# Entrenamiento: laptop con RTX 5050 (CUDA 12.x)
+# Despliegue: Raspberry Pi 5 (ONNX Runtime / NCNN)
 # ============================================================
 
-# --- Deep Learning Core ---
-torch>=2.2.0
-torchvision>=0.17.0
-torchaudio>=2.2.0
+# --- YOLO (modelo + entrenamiento + export) ---
+ultralytics>=8.3.0
 
-# --- Modelo RT-DETR (Apache 2.0) ---
-transformers>=4.40.0
-accelerate>=0.28.0
-
-# --- Dataset Open Images v7 (descarga y manejo) ---
-fiftyone>=0.23.0
-
-# --- Visión y procesamiento ---
+# --- Vision y procesamiento ---
 opencv-python>=4.9.0
 Pillow>=10.0.0
 numpy>=1.24.0
 
-# --- Entrenamiento y métricas ---
-pycocotools>=2.0.7
-scipy>=1.12.0
-matplotlib>=3.8.0
-tqdm>=4.66.0
-pyyaml>=6.0.0
+# --- Dataset Open Images v7 ---
+fiftyone>=0.23.0
 
-# --- Alertas (sonido) ---
-playsound>=1.3.0
+# --- Export (ONNX para Raspberry Pi) ---
+onnx>=1.15.0
+onnxruntime>=1.17.0
+onnxslim>=0.1.34
+
+# --- Alertas ---
 pygame>=2.5.0
 
-# --- Logging y visualización de entrenamiento ---
-tensorboard>=2.16.0
-
 # --- Utilitarios ---
-supervision>=0.20.0
+pyyaml>=6.0.0
+tqdm>=4.66.0
+matplotlib>=3.8.0
+
+# --- Notas de instalacion ---
+# 1. Instalar PyTorch con CUDA 12.x ANTES de este requirements:
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# 2. En la Raspberry Pi 5 NO se instala este archivo. Solo se necesita:
+#    pip install opencv-python onnxruntime numpy pygame pyyaml

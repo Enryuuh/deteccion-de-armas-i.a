@@ -1,31 +1,23 @@
 """
-Script 5: Inferencia en Tiempo Real con Cámara
-===============================================
-Detecta cuchillos y armas de fuego usando el modelo entrenado.
-Optimizado para RTX 4060 — ~30-60 FPS con FP16.
+Script 5: Inferencia en tiempo real desde camara
+==================================================
+Modo laptop: usa los pesos .pt directamente con ultralytics.
+Para Raspberry Pi 5 usar scripts/7_inference_pi.py (ONNX Runtime).
 
 Uso:
     python scripts/5_inference_camera.py
-    python scripts/5_inference_camera.py --model-dir models/rtdetr_weapons/best
-    python scripts/5_inference_camera.py --source video.mp4   (archivo de video)
-    python scripts/5_inference_camera.py --source 0           (cámara USB)
 """
 
+import logging
 import sys
 import time
-import logging
-import argparse
-import yaml
 from pathlib import Path
-from collections import deque
 
 import cv2
-import torch
-import numpy as np
-from PIL import Image
-from transformers import AutoImageProcessor, AutoModelForObjectDetection
+import yaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from utils.visualization import draw_detections, draw_hud
 from utils.alerts import AlertSystem
 
@@ -38,125 +30,79 @@ def load_config(path: str = "config.yaml") -> dict:
         return yaml.safe_load(f)
 
 
-def open_source(source: str) -> cv2.VideoCapture:
-    """Abre cámara o archivo de video."""
-    try:
-        cam_idx = int(source)
-        cap = cv2.VideoCapture(cam_idx, cv2.CAP_DSHOW)  # DirectShow para Windows
-    except ValueError:
-        cap = cv2.VideoCapture(source)
-
-    if not cap.isOpened():
-        raise RuntimeError(f"No se pudo abrir la fuente: {source}")
-
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reducir latencia
-    return cap
-
-
-@torch.no_grad()
-def infer_frame(model, processor, frame_rgb, device, conf_thresh: float, use_fp16: bool):
-    """Corre RT-DETR sobre un frame y retorna bboxes, scores y labels."""
-    pil_img  = Image.fromarray(frame_rgb)
-    inputs   = processor(images=pil_img, return_tensors="pt")
-    pv       = inputs["pixel_values"].to(device)
-
-    with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_fp16):
-        outputs = model(pixel_values=pv)
-
-    h, w = frame_rgb.shape[:2]
-    target_sizes = torch.tensor([[h, w]], dtype=torch.float32)
-    preds = processor.post_process_object_detection(
-        outputs, threshold=conf_thresh, target_sizes=target_sizes
-    )[0]
-
-    boxes  = preds["boxes"].cpu().numpy()    # [x1,y1,x2,y2]
-    scores = preds["scores"].cpu().numpy()
-    labels = preds["labels"].cpu().numpy()
-
-    return boxes, scores, labels
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Inferencia en tiempo real con RT-DETR")
-    parser.add_argument("--model-dir", type=str, default=None)
-    parser.add_argument("--source",    type=str, default=None,
-                        help="Índice de cámara (ej. 0) o ruta a video")
-    parser.add_argument("--conf",      type=float, default=None)
-    parser.add_argument("--no-alert",  action="store_true")
-    args = parser.parse_args()
+    cfg = load_config()
+    from ultralytics import YOLO
 
-    cfg  = load_config()
-    icfg = cfg["inference"]
+    weights = Path(cfg["inference"]["weights"])
+    if not weights.exists():
+        raise FileNotFoundError(f"Pesos no encontrados: {weights}. Entrena primero.")
 
-    model_dir   = Path(args.model_dir)  if args.model_dir else Path(cfg["training"]["output_dir"]) / "best"
-    source      = args.source           if args.source     else str(icfg["camera_index"])
-    conf_thresh = args.conf             if args.conf       else icfg["confidence_threshold"]
+    model = YOLO(str(weights))
+    id2label = {i: n for i, n in enumerate(cfg["classes"])}
+    conf_th  = cfg["inference"]["confidence_threshold"]
+    iou_th   = cfg["inference"]["iou_threshold"]
+    imgsz    = cfg["inference"]["imgsz"]
+    cam_idx  = cfg["inference"]["camera_index"]
 
-    if not model_dir.exists():
-        logger.error(f"Modelo no encontrado en {model_dir}. Entrena con script 3 primero.")
-        sys.exit(1)
+    alerts = AlertSystem(cfg)
 
-    device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    use_fp16 = device.type == "cuda"
-    logger.info(f"=== Inferencia RT-DETR  |  {device}  |  FP16: {use_fp16} ===")
+    cap = cv2.VideoCapture(cam_idx)
+    if not cap.isOpened():
+        raise RuntimeError(f"No se pudo abrir la camara index={cam_idx}")
 
-    processor = AutoImageProcessor.from_pretrained(str(model_dir))
-    model     = AutoModelForObjectDetection.from_pretrained(str(model_dir))
-    model.to(device)
-    model.eval()
+    logger.info("Camara abierta. ESC o q para salir.")
+    frame_idx = 0
+    fps_avg = 0.0
+    t_prev = time.time()
 
-    if use_fp16:
-        model.half()
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            frame_idx += 1
 
-    alerts = AlertSystem(cfg, disabled=args.no_alert)
-    cap    = open_source(source)
+            results = model.predict(
+                source = frame,
+                imgsz  = imgsz,
+                conf   = conf_th,
+                iou    = iou_th,
+                verbose = False,
+            )[0]
 
-    fps_history = deque(maxlen=30)
-    frame_idx   = 0
-    logger.info("=== Iniciando detección — presiona 'q' para salir ===")
+            if results.boxes is not None and len(results.boxes) > 0:
+                boxes_xyxy = results.boxes.xyxy.cpu().numpy()
+                scores     = results.boxes.conf.cpu().numpy()
+                cls_ids    = results.boxes.cls.cpu().numpy().astype(int)
+            else:
+                boxes_xyxy = []
+                scores     = []
+                cls_ids    = []
 
-    while True:
-        t0 = time.perf_counter()
-        ret, frame = cap.read()
-        if not ret:
-            logger.info("Fin del stream.")
-            break
+            weapon_detected = len(cls_ids) > 0
+            frame = draw_detections(frame, boxes_xyxy, scores, cls_ids, id2label)
 
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            t_now = time.time()
+            inst_fps = 1.0 / max(t_now - t_prev, 1e-6)
+            fps_avg = 0.9 * fps_avg + 0.1 * inst_fps if fps_avg > 0 else inst_fps
+            t_prev = t_now
 
-        # Inferencia
-        boxes, scores, labels_ids = infer_frame(
-            model, processor, frame_rgb, device, conf_thresh, use_fp16
-        )
+            frame = draw_hud(frame, fps_avg, weapon_detected, conf_th)
 
-        # Mapa id → nombre
-        id2label = model.config.id2label
+            if weapon_detected:
+                names = [id2label.get(int(c), "weapon") for c in cls_ids]
+                alerts.trigger(names, frame, frame_idx)
 
-        # Calcular FPS
-        elapsed = time.perf_counter() - t0
-        fps_history.append(1.0 / max(elapsed, 1e-6))
-        fps = np.mean(fps_history)
-
-        # Dibujar resultados
-        weapon_detected = len(boxes) > 0
-        frame_display = draw_detections(frame, boxes, scores, labels_ids, id2label)
-        frame_display = draw_hud(frame_display, fps, weapon_detected, conf_thresh)
-
-        # Alertas
-        if weapon_detected:
-            class_names = [id2label.get(int(lid), "weapon") for lid in labels_ids]
-            alerts.trigger(class_names, frame, frame_idx)
-
-        cv2.imshow("Detección de Armas — RT-DETR | 'q' para salir", frame_display)
-        frame_idx += 1
-
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-    alerts.close()
-    logger.info("=== Sesión finalizada ===")
+            cv2.imshow("Deteccion de Armas", frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (27, ord("q")):
+                break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        alerts.close()
+        logger.info("Camara cerrada.")
 
 
 if __name__ == "__main__":

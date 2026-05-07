@@ -31,7 +31,13 @@ desktop.ini
 *.pth
 *.onnx
 *.bin
+*.param
 *.safetensors
+
+# === Ultralytics / YOLO ===
+runs/
+*.engine
+*.torchscript
 
 # === Logs y temporales ===
 *.log

@@ -1,11 +1,19 @@
+# ============================================================
+# Configuracion central - Deteccion de armas (YOLOv8)
+# Hardware objetivo entrenamiento: RTX 5050 Laptop (8 GB)
+# Hardware objetivo despliegue:    Raspberry Pi 5
+# Clases: armas blancas (knife) + armas de fuego (firearm)
+# ============================================================
+
 model:
-  name: "PekingU/rtdetr_r50vd"   # RT-DETR-R50 — Apache 2.0, equilibrio ideal para RTX 4060
-  num_classes: 3                  # 0: background, 1: knife, 2: firearm
-  image_size: 640                 # Resolución de entrada (múltiplo de 32)
+  # YOLOv8s = balance entre precision y velocidad. RTX 5050 lo entrena
+  # comodamente; al exportar para la Pi5 se usa nano (ver export.model).
+  name: "yolov8s.pt"
+  image_size: 640
 
 classes:
-  - "knife"
-  - "firearm"
+  - "knife"      # armas blancas (cuchillos)
+  - "firearm"    # armas de fuego (pistolas, escopetas, etc.)
 
 dataset:
   open_images_classes:
@@ -14,38 +22,61 @@ dataset:
     - "Handgun"
     - "Shotgun"
   raw_dir: "data/raw"
-  processed_dir: "data/processed"
+  processed_dir: "data/processed"   # estructura YOLO: images/, labels/, data.yaml
   train_split: 0.8
   val_split: 0.15
   test_split: 0.05
-  max_samples_per_class: 2000    # Limitar para no saturar disco
+  max_samples_per_class: 1500       # equilibrado para RTX 5050
 
 training:
-  output_dir: "models/rtdetr_weapons"
-  num_epochs: 50
-  batch_size: 8                  # Óptimo para RTX 4060 8GB con FP16
-  learning_rate: 1.0e-4
-  weight_decay: 1.0e-4
-  warmup_steps: 500
-  fp16: true                     # Mixed precision — maximiza la RTX 4060
-  gradient_accumulation_steps: 2
-  eval_steps: 500
-  save_steps: 500
-  save_total_limit: 3
-  dataloader_num_workers: 4
+  output_dir: "models/yolov8_weapons"
+  project_name: "weapons"
+  run_name: "yolov8s_run1"
+  epochs: 80
+  batch: 16                         # NO al maximo: deja la GPU al ~70-80%
+  workers: 6
+  device: 0                         # 0 = primera GPU CUDA. "cpu" si falla.
+  optimizer: "AdamW"
+  lr0: 0.001
+  patience: 20                      # early stopping
+  amp: true                         # FP16 mixed precision
+  cache: false                      # true acelera pero usa RAM (24 GB OK)
   seed: 42
+  # Augmentations conservadoras (armas no se ven invertidas en la realidad)
+  fliplr: 0.5
+  flipud: 0.0
+  mosaic: 1.0
+  mixup: 0.1
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
 
 inference:
-  confidence_threshold: 0.50     # Umbral mínimo de confianza
-  iou_threshold: 0.45            # Umbral NMS
-  camera_index: 0                # 0 = webcam principal
+  weights: "models/yolov8_weapons/weapons/yolov8s_run1/weights/best.pt"
+  confidence_threshold: 0.50
+  iou_threshold: 0.45
+  camera_index: 0
   display_fps: true
-  alert_cooldown_seconds: 5      # Espera entre alertas repetidas
+  alert_cooldown_seconds: 5
+  imgsz: 640
+
+# Para el export a Raspberry Pi 5 se entrena ADEMAS un YOLOv8n
+# (nano, ~6 MB) que es lo que realmente correra en la Pi.
+export:
+  model: "yolov8n.pt"               # base ligera para la Pi
+  imgsz: 416                        # resolucion reducida para FPS en Pi
+  formats:
+    - "onnx"                        # principal: corre con onnxruntime
+    - "ncnn"                        # opcional: mas rapido en ARM
+  half: false                       # ONNX Runtime CPU no soporta FP16 bien
+  simplify: true
+  opset: 12
+  output_dir: "models/export"
 
 alerts:
   sound_enabled: true
   sound_file: "assets/alert.wav"
   log_detections: true
   log_file: "logs/detections.log"
-  save_frames: true              # Guardar frames cuando detecta arma
+  save_frames: true
   frames_dir: "logs/frames"
