@@ -42,3 +42,4 @@ runs/
 # === Logs y temporales ===
 *.log
 *.tmp
+logs_*.txt

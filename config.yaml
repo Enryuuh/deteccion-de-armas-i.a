@@ -1,58 +1,58 @@
 # ============================================================
 # Configuracion central - Deteccion de armas (YOLOv8)
-# Hardware objetivo entrenamiento: RTX 5050 Laptop (8 GB)
-# Hardware objetivo despliegue:    Raspberry Pi 5
-# Clases: armas blancas (knife) + armas de fuego (firearm)
+# Hardware entrenamiento: RTX 5050 Laptop (8 GB)
+# Despliegue:             Raspberry Pi 5
+# Clases finales: knife / handgun / long_gun
 # ============================================================
 
 model:
-  # YOLOv8s = balance entre precision y velocidad. RTX 5050 lo entrena
-  # comodamente; al exportar para la Pi5 se usa nano (ver export.model).
   name: "yolov8s.pt"
   image_size: 640
 
 classes:
-  - "knife"      # armas blancas (cuchillos)
-  - "firearm"    # armas de fuego (pistolas, escopetas, etc.)
+  - "knife"
+  - "handgun"
+  - "long_gun"     # rifles + escopetas
 
 dataset:
+  # Open Images v7: clases leaf usadas para descarga (script 1)
   open_images_classes:
     - "Knife"
-    - "Firearm"
     - "Handgun"
     - "Shotgun"
+    - "Rifle"
   raw_dir: "data/raw"
-  processed_dir: "data/processed"   # estructura YOLO: images/, labels/, data.yaml
-  train_split: 0.8
-  val_split: 0.15
+  processed_dir: "data/processed"
+  train_split: 0.85
+  val_split: 0.10
   test_split: 0.05
-  max_samples_per_class: 1500       # equilibrado para RTX 5050
+  max_samples_per_class: 1500
 
 training:
   output_dir: "models/yolov8_weapons"
   project_name: "weapons"
-  run_name: "yolov8s_run1"
-  epochs: 80
-  batch: 16                         # NO al maximo: deja la GPU al ~70-80%
-  workers: 6
-  device: 0                         # 0 = primera GPU CUDA. "cpu" si falla.
+  run_name: "yolov8s_v2"
+  epochs: 100
+  batch: 8                          # bajado para evitar OOM al final del run
+  workers: 4                        # bajado para liberar RAM
+  device: 0
   optimizer: "AdamW"
   lr0: 0.001
-  patience: 20                      # early stopping
-  amp: true                         # FP16 mixed precision
-  cache: false                      # true acelera pero usa RAM (24 GB OK)
+  patience: 30                      # mas paciencia con dataset mas grande
+  amp: true
+  cache: false
   seed: 42
-  # Augmentations conservadoras (armas no se ven invertidas en la realidad)
   fliplr: 0.5
   flipud: 0.0
   mosaic: 1.0
-  mixup: 0.1
+  mixup: 0.15
+  copy_paste: 0.3                   # ayuda con clases minoritarias (knife)
   hsv_h: 0.015
   hsv_s: 0.7
   hsv_v: 0.4
 
 inference:
-  weights: "models/yolov8_weapons/weapons/yolov8s_run1/weights/best.pt"
+  weights: "models/yolov8_weapons/weapons/yolov8s_v2/weights/best.pt"
   confidence_threshold: 0.50
   iou_threshold: 0.45
   camera_index: 0
@@ -60,21 +60,24 @@ inference:
   alert_cooldown_seconds: 5
   imgsz: 640
 
-# Para el export a Raspberry Pi 5 se entrena ADEMAS un YOLOv8n
-# (nano, ~6 MB) que es lo que realmente correra en la Pi.
+# Para la Pi5 se entrena un YOLOv8n con el mismo dataset y se exporta a ONNX INT8
 export:
-  model: "yolov8n.pt"               # base ligera para la Pi
-  imgsz: 416                        # resolucion reducida para FPS en Pi
+  model: "yolov8n.pt"
+  run_name: "yolov8n_v2"
+  imgsz: 416
+  epochs: 80
+  batch: 16
   formats:
-    - "onnx"                        # principal: corre con onnxruntime
-    - "ncnn"                        # opcional: mas rapido en ARM
-  half: false                       # ONNX Runtime CPU no soporta FP16 bien
+    - "onnx"
+    - "ncnn"
+  half: false
   simplify: true
   opset: 12
+  int8: true                        # cuantizacion INT8 al exportar (ONNX)
   output_dir: "models/export"
 
 alerts:
-  sound_enabled: true
+  sound_enabled: false              # asset/alert.wav no incluido en el repo
   sound_file: "assets/alert.wav"
   log_detections: true
   log_file: "logs/detections.log"

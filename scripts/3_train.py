@@ -58,6 +58,7 @@ def main():
         flipud     = t.get("flipud", 0.0),
         mosaic     = t.get("mosaic", 1.0),
         mixup      = t.get("mixup", 0.1),
+        copy_paste = t.get("copy_paste", 0.0),
         hsv_h      = t.get("hsv_h", 0.015),
         hsv_s      = t.get("hsv_s", 0.7),
         hsv_v      = t.get("hsv_v", 0.4),

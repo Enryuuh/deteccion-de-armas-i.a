@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 # Open Images label -> nuestra clase
 OI_TO_LABEL = {
     "Knife":   "knife",
-    "Firearm": "firearm",
     "Handgun": "firearm",
     "Shotgun": "firearm",
+    "Rifle":   "firearm",
 }
 
 

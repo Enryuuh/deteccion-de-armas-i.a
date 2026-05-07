@@ -44,9 +44,9 @@ def download_open_images(cfg: dict):
                 label_types=["detections"],
                 classes=classes,
                 max_samples=max_samp,
-                dataset_dir=str(raw_dir / split),
                 dataset_name=f"weapons_{split}_{max_samp}",
             )
+            ds.persistent = True  # mantener entre ejecuciones para script 2
             logger.info(f"   Split '{split}': {len(ds)} imagenes descargadas")
         except Exception as e:
             logger.warning(f"   No se pudo descargar split '{split}': {e}")
