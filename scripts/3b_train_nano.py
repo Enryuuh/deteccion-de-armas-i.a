@@ -30,14 +30,14 @@ def main():
         data       = str(data_yaml),
         epochs     = e["epochs"],
         imgsz      = e["imgsz"],
-        batch      = e["batch"],
-        workers    = t["workers"],
+        batch      = 24,           # 32 dispara cuDNN error en Blackwell, 24 estable
+        workers    = 6,
         device     = t.get("device", 0),
         optimizer  = t.get("optimizer", "AdamW"),
         lr0        = t.get("lr0", 0.001),
         patience   = 20,
         amp        = True,
-        cache      = False,
+        cache      = "ram",        # 8.6k imgs en RAM (~3 GB) -> sin lectura de disco
         seed       = t.get("seed", 42),
         project    = t["output_dir"],
         name       = f"{t['project_name']}/{e['run_name']}",
