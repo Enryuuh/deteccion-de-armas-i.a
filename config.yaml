@@ -26,7 +26,7 @@ dataset:
   train_split: 0.85
   val_split: 0.10
   test_split: 0.05
-  max_samples_per_class: 1500
+  max_samples_per_class: 3500
 
 training:
   output_dir: "models/yolov8_weapons"
@@ -45,25 +45,38 @@ training:
   fliplr: 0.5
   flipud: 0.0
   mosaic: 1.0
-  mixup: 0.15
-  copy_paste: 0.3                   # ayuda con clases minoritarias (knife)
-  hsv_h: 0.015
-  hsv_s: 0.7
-  hsv_v: 0.4
+  mixup: 0.20                       # subido: más combinaciones de imágenes
+  copy_paste: 0.5                   # subido: más pegado de armas en otros fondos
+  degrees: 25                       # NUEVO: rotación hasta 25° (armas en cualquier ángulo)
+  translate: 0.15                   # NUEVO: traslación ±15% (objetos en cualquier posición del frame)
+  scale: 0.6                        # NUEVO: escala ±60% (armas cerca/lejos)
+  shear: 5                          # NUEVO: cizalla 5° (perspectivas)
+  perspective: 0.0005               # NUEVO: deformación de perspectiva ligera
+  hsv_h: 0.02                       # subido: más variación de tono
+  hsv_s: 0.8                        # subido: más saturación
+  hsv_v: 0.5                        # subido: más variación de brillo (luz/sombra)
 
 inference:
-  weights: "models/yolov8_weapons/weapons/yolov8s_v2/weights/best.pt"
-  confidence_threshold: 0.50
+  weights: "runs/detect/models/yolov8_weapons/weapons/yolov8s_v4_pose_negs/weights/best.pt"
+  confidence_threshold: 0.30      # base
+  class_thresholds:               # umbral específico por clase
+    knife:    0.40                # con dataset HF debería detectar mejor knife
+    handgun:  0.45
+    long_gun: 0.45
   iou_threshold: 0.45
   camera_index: 0
   display_fps: true
-  alert_cooldown_seconds: 5
+  alert_cooldown_seconds: 1.0    # 1s entre beeps para no saturar
   imgsz: 640
+
+plausibility:
+  min_area_ratio: 0.002           # caja < 0.2% del frame → descartada
+  max_area_ratio: 0.55            # caja > 55% del frame → descartada
 
 # Para la Pi5 se entrena un YOLOv8n con el mismo dataset y se exporta a ONNX INT8
 export:
   model: "yolov8n.pt"
-  run_name: "yolov8n_v2"
+  run_name: "yolov8n_v4_pose_negs"
   imgsz: 416
   epochs: 80
   batch: 16
@@ -77,9 +90,26 @@ export:
   output_dir: "models/export"
 
 alerts:
-  sound_enabled: false              # asset/alert.wav no incluido en el repo
+  sound_enabled: true               # beep sintético generado en runtime (no requiere wav)
   sound_file: "assets/alert.wav"
   log_detections: true
   log_file: "logs/detections.log"
+  log_json: true                    # log estructurado JSON (para análisis)
+  log_json_file: "logs/detections.jsonl"
   save_frames: true
   frames_dir: "logs/frames"
+  # Video clip: graba los últimos N segundos + M segundos post-detección
+  video_clip_enabled: true
+  video_clip_pre_seconds: 5         # segundos antes de la detección (ring buffer)
+  video_clip_post_seconds: 10       # segundos después de la primera detección
+  video_clip_dir: "logs/clips"
+  # Telegram: notificación push con foto al detectar arma
+  telegram_enabled: false           # activar cuando tengas bot token
+  telegram_bot_token: ""            # token de @BotFather
+  telegram_chat_id: ""              # chat_id destino (tu usuario o grupo)
+  telegram_cooldown_seconds: 30     # mínimo entre mensajes Telegram
+
+dashboard:
+  enabled: true                     # dashboard web para monitoreo remoto
+  port: 8080                        # puerto HTTP (acceder desde LAN: http://<ip>:8080)
+  fps_limit: 15                     # FPS máx del stream MJPEG (bajar para ahorrar ancho de banda)

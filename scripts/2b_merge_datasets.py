@@ -48,11 +48,18 @@ OI_TO_CLASS = {
 RF_PISTOLS_MAP = {0: "handgun"}      # clase 'pistol'
 RF_RIFLE_MAP   = {0: "long_gun"}     # clase 'Rifle'
 
+def _load_cfg() -> dict:
+    with open(REPO / "config.yaml", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+_CFG = _load_cfg()
+_MAX_SAMPLES = _CFG["dataset"]["max_samples_per_class"]
+
 # Cap de imágenes por fuente para mantener balance + tiempo de entreno razonable
 CAPS = {
     "rf_pistols":  3000,
     "rf_rifle":    3500,
-    "oi_per_split": 1500,  # OIv7 ya cap por clase
+    "oi_per_split": _MAX_SAMPLES,
 }
 
 SPLIT_RATIOS = {"train": 0.85, "val": 0.10, "test": 0.05}
@@ -82,7 +89,7 @@ def collect_oi():
     import fiftyone as fo
     items = []
     for split in ["train", "validation", "test"]:
-        ds_name = f"weapons_{split}_1500"
+        ds_name = f"weapons_{split}_{_MAX_SAMPLES}"
         try:
             ds = fo.load_dataset(ds_name)
         except Exception:

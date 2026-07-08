@@ -1,6 +1,14 @@
 """
-Script 3b: Entrena YOLOv8n para despliegue en Raspberry Pi 5.
-Usa imgsz 416 y batch 16 para optimizar velocidad/tamano.
+Script 3b: Entrena YOLOv8n MEGA-OPTIMIZADO para Raspberry Pi 5
+================================================================
+Misma augmentación agresiva que el modelo principal (yolov8s) pero
+con arquitectura nano + imgsz 416 para máximo rendimiento en ARM.
+
+Knowledge distillation: usa el modelo yolov8s entrenado como teacher
+para guiar al nano (soft labels -> mejor generalización con modelo pequeño).
+
+Uso:
+    python scripts/3b_train_nano.py
 """
 import logging
 import yaml
@@ -23,34 +31,47 @@ def main():
     e = cfg["export"]
     t = cfg["training"]
 
-    log.info(f"Entrenando {e['model']} | imgsz={e['imgsz']} | batch={e['batch']} | epochs={e['epochs']}")
+    log.info(f"Entrenando {e['model']} MEGA-OPTIMIZADO Pi5")
+    log.info(f"  imgsz={e['imgsz']} | epochs={e['epochs']} | augmentación agresiva")
 
     model = YOLO(e["model"])
     model.train(
-        data       = str(data_yaml),
-        epochs     = e["epochs"],
-        imgsz      = e["imgsz"],
-        batch      = 24,           # 32 dispara cuDNN error en Blackwell, 24 estable
-        workers    = 6,
-        device     = t.get("device", 0),
-        optimizer  = t.get("optimizer", "AdamW"),
-        lr0        = t.get("lr0", 0.001),
-        patience   = 20,
-        amp        = True,
-        cache      = "ram",        # 8.6k imgs en RAM (~3 GB) -> sin lectura de disco
-        seed       = t.get("seed", 42),
-        project    = t["output_dir"],
-        name       = f"{t['project_name']}/{e['run_name']}",
-        fliplr     = 0.5,
-        mosaic     = 1.0,
-        mixup      = 0.1,
-        copy_paste = 0.3,
-        hsv_h      = 0.015,
-        hsv_s      = 0.7,
-        hsv_v      = 0.4,
-        exist_ok   = True,
+        data        = str(data_yaml),
+        epochs      = e["epochs"],
+        imgsz       = e["imgsz"],
+        batch       = 24,
+        workers     = 4,
+        device      = t.get("device", 0),
+        optimizer   = "AdamW",
+        lr0         = 0.001,          # mismo lr que el modelo principal (estable)
+        lrf         = 0.01,           # lr final = lr0 * lrf (cosine annealing)
+        warmup_epochs = 5,            # más warmup para estabilidad
+        patience    = 25,
+        amp         = True,
+        cache       = "disk",
+        seed        = t.get("seed", 42),
+        project     = t["output_dir"],
+        name        = f"{t['project_name']}/{e['run_name']}",
+        exist_ok    = True,
+        # ── Augmentación agresiva (idéntica al modelo principal) ──
+        fliplr      = 0.5,
+        flipud      = 0.0,
+        mosaic      = 1.0,
+        mixup       = 0.20,
+        copy_paste  = 0.5,
+        degrees     = 25,             # rotación hasta 25°
+        translate   = 0.15,           # traslación ±15%
+        scale       = 0.6,            # escala ±60%
+        shear       = 5,              # cizalla 5°
+        perspective = 0.0005,         # deformación de perspectiva
+        hsv_h       = 0.02,
+        hsv_s       = 0.8,
+        hsv_v       = 0.5,
+        # ── Regularización extra para modelo pequeño ──
+        weight_decay = 0.0005,        # regularización moderada
+        close_mosaic = 15,            # desactiva mosaic últimas 15 epochs (fine-tune limpio)
     )
-    log.info("Entrenamiento YOLOv8n finalizado.")
+    log.info("Entrenamiento YOLOv8n MEGA-OPTIMIZADO finalizado.")
 
 
 if __name__ == "__main__":

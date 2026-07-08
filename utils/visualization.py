@@ -1,110 +1,130 @@
 """
 utils/visualization.py
 =======================
-Funciones para dibujar bounding boxes, etiquetas y HUD
-sobre los frames de la cámara.
+HUD minimalista + bounding boxes con etiquetas. Optimizado para correr
+a 30+ FPS sin copias innecesarias del frame.
 """
 
 import cv2
 import numpy as np
 
-# Paleta de colores por clase (BGR)
+# Paleta por clase (BGR)
 CLASS_COLORS = {
-    "knife":    (0, 60, 255),    # rojo
-    "firearm":  (0, 0, 220),     # rojo más oscuro
+    "knife":    (50, 180, 255),   # naranja
+    "handgun":  (60,  80, 255),   # rojo claro
+    "long_gun": (40,  40, 220),   # rojo oscuro
+    "firearm":  (60,  80, 255),
 }
 DEFAULT_COLOR = (0, 200, 255)
+ALERT_COLOR   = (45, 45, 230)
+SAFE_COLOR    = (90, 200, 110)
+TEXT_COLOR    = (245, 245, 245)
+TEXT_DIM      = (170, 170, 170)
+HUD_BG        = (25, 25, 30)
 
-ALERT_COLOR   = (0, 0, 255)      # rojo para overlay de alerta
-SAFE_COLOR    = (0, 200, 80)     # verde cuando no hay arma
-HUD_BG_COLOR  = (20, 20, 20)
-
-FONT          = cv2.FONT_HERSHEY_DUPLEX
-FONT_SCALE    = 0.65
-LINE_THICK    = 2
+FONT      = cv2.FONT_HERSHEY_DUPLEX
+FONT_SMALL = cv2.FONT_HERSHEY_SIMPLEX
 
 
-def draw_detections(
-    frame: np.ndarray,
-    boxes: np.ndarray,
-    scores: np.ndarray,
-    label_ids: np.ndarray,
-    id2label: dict,
-) -> np.ndarray:
-    """
-    Dibuja bounding boxes y etiquetas sobre el frame.
-    boxes: array [N, 4] en formato [x1, y1, x2, y2]
-    """
-    output = frame.copy()
+def _put_text(img, text, org, scale=0.55, color=TEXT_COLOR, thick=1, font=FONT):
+    """Texto con sombra sutil para legibilidad sobre cualquier fondo."""
+    x, y = org
+    cv2.putText(img, text, (x + 1, y + 1), font, scale, (0, 0, 0), thick + 1, cv2.LINE_AA)
+    cv2.putText(img, text, (x, y),         font, scale, color,    thick,     cv2.LINE_AA)
 
-    for box, score, lid in zip(boxes, scores, label_ids):
+
+def _alpha_rect(img, p1, p2, color, alpha):
+    """Rectángulo semi-transparente in-place sin copia completa del frame."""
+    x1, y1 = p1
+    x2, y2 = p2
+    roi = img[y1:y2, x1:x2]
+    overlay = np.full_like(roi, color, dtype=np.uint8)
+    cv2.addWeighted(overlay, alpha, roi, 1 - alpha, 0, roi)
+
+
+def draw_detections(frame, boxes, scores, label_ids, id2label, track_ids=None):
+    """Dibuja cajas con esquinas decorativas, etiquetas y track ID si existe."""
+    if len(boxes) == 0:
+        return frame
+
+    if track_ids is None:
+        track_ids = [-1] * len(boxes)
+
+    for box, score, lid, tid in zip(boxes, scores, label_ids, track_ids):
         class_name = id2label.get(int(lid), "weapon")
         color      = CLASS_COLORS.get(class_name, DEFAULT_COLOR)
-
         x1, y1, x2, y2 = map(int, box)
 
-        # Rectángulo principal
-        cv2.rectangle(output, (x1, y1), (x2, y2), color, LINE_THICK)
+        # Caja principal (línea fina)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2, cv2.LINE_AA)
 
-        # Esquinas decorativas
-        corner_len = max(10, min(20, (x2 - x1) // 4))
+        # Esquinas decorativas (gruesas)
+        corner = max(8, min(18, (x2 - x1) // 5))
         for cx, cy, dx, dy in [
             (x1, y1,  1,  1),
             (x2, y1, -1,  1),
             (x1, y2,  1, -1),
             (x2, y2, -1, -1),
         ]:
-            cv2.line(output, (cx, cy), (cx + dx * corner_len, cy), color, 3)
-            cv2.line(output, (cx, cy), (cx, cy + dy * corner_len), color, 3)
+            cv2.line(frame, (cx, cy), (cx + dx * corner, cy), color, 4, cv2.LINE_AA)
+            cv2.line(frame, (cx, cy), (cx, cy + dy * corner), color, 4, cv2.LINE_AA)
 
-        # Etiqueta con fondo
-        label_text = f"{class_name}  {score:.0%}"
-        (tw, th), baseline = cv2.getTextSize(label_text, FONT, FONT_SCALE, 1)
-        tag_y = max(y1 - 6, th + 6)
-        cv2.rectangle(output, (x1, tag_y - th - baseline - 4), (x1 + tw + 6, tag_y + 2), color, -1)
-        cv2.putText(output, label_text, (x1 + 3, tag_y - baseline), FONT, FONT_SCALE, (255, 255, 255), 1)
+        # Etiqueta con fondo (incluye track ID si existe)
+        if int(tid) > 0:
+            label = f"#{int(tid)} {class_name}  {score:.0%}"
+        else:
+            label = f"{class_name}  {score:.0%}"
+        (tw, th), _ = cv2.getTextSize(label, FONT, 0.55, 1)
+        pad = 6
+        ly1 = max(y1 - th - pad * 2 - 2, 0)
+        lx2 = x1 + tw + pad * 2
+        cv2.rectangle(frame, (x1, ly1), (lx2, ly1 + th + pad * 2), color, -1, cv2.LINE_AA)
+        cv2.putText(frame, label, (x1 + pad, ly1 + th + pad), FONT, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
 
-    return output
+    return frame
 
 
-def draw_hud(
-    frame: np.ndarray,
-    fps: float,
-    weapon_detected: bool,
-    conf_thresh: float,
-) -> np.ndarray:
+def draw_hud(frame, fps, weapon_detected, conf_thresh, class_names=None):
     """
-    Dibuja el HUD informativo en la esquina superior izquierda
-    y un overlay rojo semi-transparente si hay arma detectada.
+    HUD compacto en esquina superior izquierda + indicador de alerta arriba derecha.
     """
-    output = frame.copy()
-    h, w   = output.shape[:2]
+    h, w = frame.shape[:2]
 
-    # Overlay rojo al detectar arma
+    # ── Borde rojo de alerta cuando hay arma (mucho menos invasivo que tinte de pantalla)
     if weapon_detected:
-        overlay = output.copy()
-        cv2.rectangle(overlay, (0, 0), (w, h), ALERT_COLOR, -1)
-        cv2.addWeighted(overlay, 0.12, output, 0.88, 0, output)
+        thick = 6
+        cv2.rectangle(frame, (0, 0), (w - 1, h - 1), ALERT_COLOR, thick, cv2.LINE_AA)
 
-        # Banner de alerta
-        alert_text = "⚠  ARMA DETECTADA"
-        (tw, th), _ = cv2.getTextSize(alert_text, FONT, 1.1, 2)
-        ax = (w - tw) // 2
-        ay = 55
-        cv2.rectangle(output, (ax - 12, ay - th - 10), (ax + tw + 12, ay + 8), ALERT_COLOR, -1)
-        cv2.putText(output, alert_text, (ax, ay), FONT, 1.1, (255, 255, 255), 2)
+    # ── Panel HUD esquina superior izquierda
+    pw, ph = 200, 78
+    _alpha_rect(frame, (0, 0), (pw, ph), HUD_BG, 0.72)
+    cv2.rectangle(frame, (0, 0), (pw, ph), (60, 60, 70), 1, cv2.LINE_AA)
 
-    # HUD background
-    hud_h = 90
-    cv2.rectangle(output, (0, 0), (240, hud_h), HUD_BG_COLOR, -1)
-    cv2.addWeighted(output[:hud_h, :240], 0.0, frame[:hud_h, :240], 0.0, 0, output[:hud_h, :240])
-    cv2.rectangle(output, (0, 0), (240, hud_h), (50, 50, 50), 1)
+    # FPS y umbral
+    _put_text(frame, f"FPS  {fps:5.1f}",          (12, 22), 0.5, TEXT_DIM, 1, FONT_SMALL)
+    _put_text(frame, f"Umbral  {conf_thresh:.0%}", (12, 42), 0.5, TEXT_DIM, 1, FONT_SMALL)
 
-    status_text  = "ARMA" if weapon_detected else "SEGURO"
+    # Estado: verde / rojo
     status_color = ALERT_COLOR if weapon_detected else SAFE_COLOR
+    cv2.circle(frame, (20, 64), 5, status_color, -1, cv2.LINE_AA)
+    status_txt = "ALERTA" if weapon_detected else "SEGURO"
+    _put_text(frame, status_txt, (32, 69), 0.55, status_color, 1, FONT)
 
-    cv2.putText(output, f"FPS:    {fps:5.1f}",         (10, 22), FONT, 0.55, (200, 200, 200), 1)
-    cv2.putText(output, f"Umbral: {conf_thresh:.0%}",  (10, 44), FONT, 0.55, (200, 200, 200), 1)
-    cv2.putText(output, f"Estado: {status_text}",      (10, 70), FONT, 0.65, status_color, 1)
+    # ── Banner compacto top-right cuando hay alerta
+    if weapon_detected and class_names:
+        # Contar por clase
+        counts = {}
+        for n in class_names:
+            counts[n] = counts.get(n, 0) + 1
+        summary = "  ".join(f"{c} x{n}" if n > 1 else c for c, n in counts.items())
+        text = f"⚠  {summary.upper()}"
+        (tw, th), _ = cv2.getTextSize(text, FONT, 0.6, 1)
+        pad = 10
+        bx1 = w - tw - pad * 2 - 12
+        bx2 = w - 12
+        by1 = 12
+        by2 = by1 + th + pad * 2
+        _alpha_rect(frame, (bx1, by1), (bx2, by2), ALERT_COLOR, 0.85)
+        _put_text(frame, text, (bx1 + pad, by1 + th + pad), 0.6, (255, 255, 255), 1, FONT)
 
-    return output
+    return frame
