@@ -163,6 +163,33 @@ python 7_inference_pi.py --weights best.onnx
 
 ---
 
+## Reconocimiento facial (identificacion de personas)
+
+Ademas de detectar armas, el sistema puede **identificar de quien** son las
+caras presentes, comparando contra personas previamente matriculadas. Usa
+InsightFace (embeddings ArcFace, ONNX) — **no se entrena**, se matricula.
+
+```bash
+# 1. Matricular personas (registrar quien es quien)
+python scripts/20_enroll_faces.py --capture "Tu Nombre"        # con webcam
+#   o desde carpetas faces_db/<nombre>/*.jpg:
+python scripts/20_enroll_faces.py --from-folder faces_db
+python scripts/20_enroll_faces.py --list                       # ver matriculados
+
+# 2. Activar en config.yaml:  face_recognition.enabled: true
+# 3. Correr la deteccion normal: las caras conocidas apareceran con su nombre,
+#    y las alertas registraran QUIEN portaba el arma.
+python scripts/5_inference_camera.py
+```
+
+- **Laptop/GPU:** `model_pack: buffalo_l`, `use_gpu: true`.
+- **Raspberry Pi 5:** `model_pack: buffalo_sc`, `use_gpu: false`, `only_on_weapon: true`
+  (reconoce solo al detectar un arma, para no bajar los FPS).
+- Los datos biometricos (`faces_db/`, `models/faces/`) **no se suben a git**.
+  Matricula solo a personas que dieron su consentimiento.
+
+---
+
 ## Clases detectadas
 
 | ID | Clase | Descripcion |

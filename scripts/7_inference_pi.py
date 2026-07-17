@@ -31,10 +31,11 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils.visualization import draw_detections, draw_hud
+from utils.visualization import draw_detections, draw_hud, draw_faces
 from utils.alerts import AlertSystem
 from utils.temporal_filter import TemporalDetectionFilter
 from utils.plausibility_filter import PlausibilityFilter
+from utils.face_recognition import FaceRecognizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -236,6 +237,16 @@ def main():
     pf = PlausibilityFilter(cfg, id2label)
     alerts = AlertSystem(cfg)
 
+    # Reconocimiento facial (en la Pi: solo al detectar arma, para ahorrar CPU)
+    try:
+        face_rec = FaceRecognizer(cfg)
+    except Exception as e:
+        logger.warning(f"Reconocimiento facial desactivado: {e}")
+        face_rec = None
+    if face_rec and face_rec.enabled:
+        logger.info("Reconocimiento facial ACTIVO (%d personas matriculadas)",
+                    len(face_rec.db_names))
+
     # ── Cámara con threading ──
     logger.info(f"Abriendo cámara {src} a {args.width}x{args.height}...")
     cam = CameraThread(src, args.width, args.height)
@@ -289,6 +300,16 @@ def main():
 
             # ── Dibujar (usa última detección para frames skipped) ──
             weapon_detected = len(last_cls_ids) > 0
+
+            # ── Reconocimiento facial: solo cuando hay arma (ahorra CPU en la Pi) ──
+            persons = None
+            if face_rec and face_rec.enabled and weapon_detected:
+                faces = face_rec.recognize(frame)
+                if faces:
+                    frame = draw_faces(frame, faces)
+                    known = [f.name for f in faces if f.is_known]
+                    persons = known if known else ["Desconocido"]
+
             frame = draw_detections(frame, last_boxes, last_scores, last_cls_ids, id2label)
 
             t_now = time.time()
@@ -300,7 +321,7 @@ def main():
             frame = draw_hud(frame, fps_avg, weapon_detected, conf_th, names)
 
             if weapon_detected:
-                alerts.trigger(names, frame, frame_idx)
+                alerts.trigger(names, frame, frame_idx, persons)
 
             if not args.no_display:
                 cv2.imshow("Deteccion de Armas (Pi5)", frame)

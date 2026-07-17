@@ -98,6 +98,7 @@ face_recognition:
   db_file: "models/faces/face_db.npz"   # base de caras matriculadas (NO se sube a git)
   # En la Pi5, reconocer solo cuando hay un arma detectada (ahorra CPU):
   only_on_weapon: true
+  recognize_every: 5                # laptop: reconocer 1 de cada N frames (cachea el resto)
 
 alerts:
   sound_enabled: true               # beep sintético generado en runtime (no requiere wav)

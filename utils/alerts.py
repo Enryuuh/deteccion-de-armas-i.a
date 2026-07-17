@@ -103,7 +103,7 @@ class TelegramNotifier:
         self.last_sent = 0.0
         self._url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
-    def send(self, frame: np.ndarray, class_names: list):
+    def send(self, frame: np.ndarray, class_names: list, persons: list = None):
         """Envía notificación si no está en cooldown. No bloquea."""
         now = time.time()
         if (now - self.last_sent) < self.cooldown:
@@ -117,6 +117,8 @@ class TelegramNotifier:
                 ts = datetime.now().strftime("%H:%M:%S")
                 classes_str = ", ".join(set(class_names))
                 caption = f"⚠️ ARMA DETECTADA\n{classes_str}\n🕐 {ts}"
+                if persons:
+                    caption += "\n👤 " + ", ".join(dict.fromkeys(persons))
                 resp = requests.post(
                     self._url,
                     data={"chat_id": self.chat_id, "caption": caption},
@@ -219,8 +221,12 @@ class AlertSystem:
         if self.clip_recorder:
             self.clip_recorder.push_frame(frame)
 
-    def trigger(self, class_names: list, frame: np.ndarray, frame_idx: int):
-        """Dispara alertas multi-canal si no está en cooldown."""
+    def trigger(self, class_names: list, frame: np.ndarray, frame_idx: int,
+                persons: list = None):
+        """Dispara alertas multi-canal si no está en cooldown.
+
+        persons: nombres de personas reconocidas en el frame (opcional).
+        """
         if self.disabled or not self._should_fire():
             # Aun en cooldown, si estamos grabando clip, extender
             if self.clip_recorder and self.clip_recorder.recording:
@@ -230,6 +236,8 @@ class AlertSystem:
         self.last_alert_t = time.time()
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         classes_str = ", ".join(set(class_names))
+        persons_uniq = list(dict.fromkeys(persons)) if persons else []
+        persons_str = ", ".join(persons_uniq) if persons_uniq else "-"
 
         # 1. Sonido
         if self._sound:
@@ -242,7 +250,8 @@ class AlertSystem:
         if self.log_enabled:
             try:
                 with open(self.log_path, "a", encoding="utf-8") as f:
-                    f.write(f"[{timestamp}]  Frame #{frame_idx:06d}  |  Detectado: {classes_str}\n")
+                    f.write(f"[{timestamp}]  Frame #{frame_idx:06d}  |  Detectado: {classes_str}"
+                            f"  |  Persona(s): {persons_str}\n")
             except Exception as e:
                 logger.warning(f"Error log texto: {e}")
 
@@ -254,6 +263,7 @@ class AlertSystem:
                     "frame_idx": frame_idx,
                     "classes": list(set(class_names)),
                     "counts": {n: class_names.count(n) for n in set(class_names)},
+                    "persons": persons_uniq,
                 }
                 with open(self.json_log_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -274,9 +284,10 @@ class AlertSystem:
 
         # 6. Telegram
         if self.telegram and frame is not None:
-            self.telegram.send(frame, class_names)
+            self.telegram.send(frame, class_names, persons_uniq)
 
-        logger.warning(f"ALERTA  [{timestamp}]  Detectado: {classes_str}")
+        person_log = f"  |  Persona(s): {persons_str}" if persons_uniq else ""
+        logger.warning(f"ALERTA  [{timestamp}]  Detectado: {classes_str}{person_log}")
 
     def close(self):
         if self.disabled:

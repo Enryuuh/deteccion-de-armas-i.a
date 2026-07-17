@@ -27,10 +27,11 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils.visualization import draw_detections, draw_hud
+from utils.visualization import draw_detections, draw_hud, draw_faces
 from utils.alerts import AlertSystem
 from utils.temporal_filter import TemporalDetectionFilter
 from utils.plausibility_filter import PlausibilityFilter
+from utils.face_recognition import FaceRecognizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -66,6 +67,20 @@ def main():
     tf = TemporalDetectionFilter(window=3, min_hits=2, smooth_alpha=0.40)
     # Filtro de plausibilidad: umbral por clase + geometria de caja
     pf = PlausibilityFilter(cfg, id2label)
+
+    # Reconocimiento facial (identificacion de personas)
+    fcfg = cfg.get("face_recognition", {}) or {}
+    face_only_on_weapon = bool(fcfg.get("only_on_weapon", False))
+    face_every = max(1, int(fcfg.get("recognize_every", 5)))
+    try:
+        face_rec = FaceRecognizer(cfg)
+    except Exception as e:
+        logger.warning(f"Reconocimiento facial desactivado: {e}")
+        face_rec = None
+    if face_rec and face_rec.enabled:
+        logger.info("Reconocimiento facial ACTIVO (%d personas matriculadas)",
+                    len(face_rec.db_names))
+    last_faces: list = []
 
     # Dashboard web
     dashboard_fn = None
@@ -162,6 +177,22 @@ def main():
             display_ids = kept_ids[:len(boxes_xyxy)] if kept_ids else [-1] * len(boxes_xyxy)
 
             weapon_detected = len(cls_ids) > 0
+
+            # ── Reconocimiento facial (sobre el frame limpio, antes de dibujar armas) ──
+            persons = None
+            if face_rec and face_rec.enabled:
+                run_face = (
+                    (weapon_detected if face_only_on_weapon else True)
+                    and (frame_idx % face_every == 0 or weapon_detected)
+                )
+                if run_face:
+                    last_faces = face_rec.recognize(frame)
+                if last_faces:
+                    frame = draw_faces(frame, last_faces)
+                    known = [f.name for f in last_faces if f.is_known]
+                    if weapon_detected:
+                        persons = known if known else ["Desconocido"]
+
             frame = draw_detections(frame, boxes_xyxy, scores, cls_ids, id2label, display_ids)
 
             t_now = time.time()
@@ -173,7 +204,7 @@ def main():
             frame = draw_hud(frame, fps_avg, weapon_detected, conf_th, names)
 
             if weapon_detected:
-                alerts.trigger(names, frame, frame_idx)
+                alerts.trigger(names, frame, frame_idx, persons)
 
             # Dashboard web
             if dashboard_fn:

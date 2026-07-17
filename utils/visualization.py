@@ -84,6 +84,34 @@ def draw_detections(frame, boxes, scores, label_ids, id2label, track_ids=None):
     return frame
 
 
+FACE_KNOWN_COLOR   = (90, 200, 110)   # verde  (persona identificada)
+FACE_UNKNOWN_COLOR = (0, 170, 255)    # naranja (desconocido)
+
+
+def draw_faces(frame, faces):
+    """
+    Dibuja las caras reconocidas con su nombre.
+    `faces` es una lista de objetos con .name, .score, .bbox y .is_known
+    (FaceResult de utils.face_recognition).
+    """
+    if not faces:
+        return frame
+
+    for f in faces:
+        x1, y1, x2, y2 = map(int, f.bbox)
+        color = FACE_KNOWN_COLOR if f.is_known else FACE_UNKNOWN_COLOR
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2, cv2.LINE_AA)
+
+        label = f"{f.name}  {f.score:.0%}" if f.is_known else f.name
+        (tw, th), _ = cv2.getTextSize(label, FONT, 0.5, 1)
+        pad = 5
+        ly2 = min(y2 + th + pad * 2 + 2, frame.shape[0] - 1)
+        cv2.rectangle(frame, (x1, y2), (x1 + tw + pad * 2, ly2), color, -1, cv2.LINE_AA)
+        cv2.putText(frame, label, (x1 + pad, ly2 - pad), FONT, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+    return frame
+
+
 def draw_hud(frame, fps, weapon_detected, conf_thresh, class_names=None):
     """
     HUD compacto en esquina superior izquierda + indicador de alerta arriba derecha.
