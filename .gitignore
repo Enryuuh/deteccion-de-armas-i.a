@@ -45,6 +45,10 @@ runs/
 *.engine
 *.torchscript
 
+# === Datos biometricos — NUNCA subir a git ===
+faces_db/                 # fotos originales de personas para matricular
+models/faces/             # base de embeddings (face_db.npz)
+
 # === Logs y temporales ===
 *.log
 *.tmp

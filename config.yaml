@@ -89,6 +89,16 @@ export:
   int8: true                        # cuantizacion INT8 al exportar (ONNX)
   output_dir: "models/export"
 
+face_recognition:
+  enabled: false                    # activar cuando tengas caras matriculadas
+  model_pack: "buffalo_l"           # laptop/GPU: buffalo_l (preciso) · Pi: buffalo_sc (ligero)
+  use_gpu: true                     # true en laptop (RTX). En la Pi5 poner false
+  det_size: 640                     # tamaño de detección de caras (Pi: 320 para más FPS)
+  similarity_threshold: 0.35        # ≥ umbral = misma persona (coseno). Subir = más estricto
+  db_file: "models/faces/face_db.npz"   # base de caras matriculadas (NO se sube a git)
+  # En la Pi5, reconocer solo cuando hay un arma detectada (ahorra CPU):
+  only_on_weapon: true
+
 alerts:
   sound_enabled: true               # beep sintético generado en runtime (no requiere wav)
   sound_file: "assets/alert.wav"
