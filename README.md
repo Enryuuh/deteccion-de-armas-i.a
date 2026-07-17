@@ -6,6 +6,51 @@ Sistema de deteccion en tiempo real de **armas blancas (cuchillos)** y **armas d
 
 ---
 
+## Inicio rapido (clonar y ejecutar)
+
+**El modelo ya entrenado viene incluido en el repo.** No hace falta descargar el
+dataset ni reentrenar: clonas, instalas dependencias y corre.
+
+```bash
+# 1. Clonar
+git clone https://github.com/Enryuuh/deteccion-de-armas-i.a.git
+cd deteccion-de-armas-i.a
+
+# 2. Crear entorno virtual (Python 3.10+)
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+# source .venv/bin/activate       # Linux / macOS
+
+# 3. Instalar PyTorch
+#    -- Con GPU NVIDIA (CUDA 12.x):
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#    -- Solo CPU (sin tarjeta grafica):
+# pip install torch torchvision
+
+# 4. Instalar el resto de dependencias
+pip install -r requirements.txt
+
+# 5. Ejecutar la deteccion con la camara
+python scripts/5_inference_camera.py
+```
+
+> `fiftyone` (en requirements.txt) solo se usa para **descargar** el dataset.
+> Si solo vas a ejecutar la deteccion, puedes omitirlo si te da problemas al instalar.
+
+### Pesos incluidos en el repo
+
+| Archivo | Uso | Tamano |
+|---|---|---|
+| `runs/detect/models/yolov8_weapons/weapons/yolov8s_v4_pose_negs/weights/best.pt` | **Laptop** (modelo por defecto en `config.yaml`) | 22 MB |
+| `runs/detect/models/yolov8_weapons/weapons/yolov8n_v4_pose_negs/weights/best.pt` | Raspberry Pi (PyTorch) | 6 MB |
+| `models/export/yolov8n_v4_fp32.onnx` | Raspberry Pi (ONNX Runtime) | 12 MB |
+| `models/export/yolov8n_v4_int8.onnx` | Raspberry Pi (ONNX cuantizado) | 3.3 MB |
+
+El resto de secciones (descarga de dataset, entrenamiento, evaluacion) solo son
+necesarias si quieres **reentrenar** el modelo desde cero.
+
+---
+
 ## Arquitectura
 
 | Componente | Tecnologia |

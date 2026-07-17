@@ -27,6 +27,12 @@ Thumbs.db
 desktop.ini
 
 # === Pesos de modelos grandes ===
+# EXCEPCION: los 4 pesos finales v4 SI estan versionados (añadidos con `git add -f`)
+# para que el repo funcione recien clonado sin reentrenar. Ver README "Inicio rapido".
+#   runs/detect/models/yolov8_weapons/weapons/yolov8s_v4_pose_negs/weights/best.pt  (laptop)
+#   runs/detect/models/yolov8_weapons/weapons/yolov8n_v4_pose_negs/weights/best.pt  (Pi)
+#   models/export/yolov8n_v4_fp32.onnx / yolov8n_v4_int8.onnx                       (Pi ONNX)
+# Los archivos ya trackeados ignoran estas reglas; el resto de pesos siguen fuera.
 *.pt
 *.pth
 *.onnx
