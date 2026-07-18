@@ -45,21 +45,24 @@ def load_config(path: str = "config.yaml") -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Deteccion de armas - camara")
     parser.add_argument("--no-dashboard", action="store_true", help="Desactivar dashboard web")
+    parser.add_argument("--weights", default=None, help="Ruta al modelo .pt (override config)")
+    parser.add_argument("--cam", type=int, default=None, help="Indice de camara (override config)")
     args = parser.parse_args()
 
     cfg = load_config()
     from ultralytics import YOLO
 
-    weights = Path(cfg["inference"]["weights"])
+    weights = Path(args.weights) if args.weights else Path(cfg["inference"]["weights"])
     if not weights.exists():
         raise FileNotFoundError(f"Pesos no encontrados: {weights}. Entrena primero.")
 
     model = YOLO(str(weights))
+    logger.info("Modelo cargado: %s", weights.name)
     id2label = {i: n for i, n in enumerate(cfg["classes"])}
     conf_th  = cfg["inference"]["confidence_threshold"]
     iou_th   = cfg["inference"]["iou_threshold"]
     imgsz    = cfg["inference"]["imgsz"]
-    cam_idx  = cfg["inference"]["camera_index"]
+    cam_idx  = args.cam if args.cam is not None else cfg["inference"]["camera_index"]
 
     alerts = AlertSystem(cfg)
 
