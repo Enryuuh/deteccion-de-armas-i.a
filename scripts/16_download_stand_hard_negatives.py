@@ -112,13 +112,19 @@ def get_image_urls(image_ids_csv, valid_ids):
     return dict(zip(df["ImageID"], df["OriginalURL"]))
 
 
-def download_one(img_id, url, img_out, lbl_out, prefix):
+def download_one(img_id, url, img_out, lbl_out, prefix, fail_dir=None):
     dst_img = img_out / f"{prefix}{img_id}.jpg"
     dst_lbl = lbl_out / f"{prefix}{img_id}.txt"
     if dst_img.exists() and dst_lbl.exists():
         return True
+    # Resumible: si ya sabemos que esta URL esta muerta, no reintentar.
+    fail_marker = (fail_dir / f"{prefix}{img_id}.fail") if fail_dir else None
+    if fail_marker is not None and fail_marker.exists():
+        return False
     try:
-        r = requests.get(url, timeout=15, stream=True)
+        # timeout corto: muchas URLs OriginalURL (Flickr) estan muertas;
+        # fallar rapido para no bloquear los workers en enlaces caidos.
+        r = requests.get(url, timeout=5, stream=True)
         r.raise_for_status()
         img = Image.open(BytesIO(r.content)).convert("RGB")
         if min(img.size) < 200:
@@ -127,6 +133,11 @@ def download_one(img_id, url, img_out, lbl_out, prefix):
         dst_lbl.write_text("", encoding="utf-8")  # background = label vacío
         return True
     except Exception:
+        if fail_marker is not None:
+            try:
+                fail_marker.touch()
+            except Exception:
+                pass
         return False
 
 
@@ -145,10 +156,14 @@ def download_negatives_from_split(split_meta, split_labels, prefix, img_out, lbl
     urls = get_image_urls(image_ids_csv, clean_ids)
     log.info(f"  {len(urls)} URLs disponibles, descargando max {target}...")
 
+    # Carpeta de marcadores de URLs muertas (resumibilidad entre corridas).
+    fail_dir = img_out.parent.parent / ".neg_fails"
+    fail_dir.mkdir(parents=True, exist_ok=True)
+
     items = list(urls.items())[:target]
     ok = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as ex:
-        futs = [ex.submit(download_one, iid, url, img_out, lbl_out, prefix)
+        futs = [ex.submit(download_one, iid, url, img_out, lbl_out, prefix, fail_dir)
                 for iid, url in items]
         for i, fut in enumerate(concurrent.futures.as_completed(futs), 1):
             if fut.result():
@@ -184,22 +199,23 @@ def main():
     code2name = load_class_map(classes_csv)
 
     total = 0
-    # Primero validation (más rápido)
-    log.info("=== Split: VALIDATION ===")
-    total += download_negatives_from_split(
-        VAL_META, VAL_LABELS, "stand_neg_val_",
-        img_out, lbl_out, code2name, max_neg // 2
-    )
-
-    # Después train si hay
+    # Primero TRAIN: tiene millones de URLs (muchas mas vivas que validation,
+    # cuyas OriginalURL de Flickr estan mayormente caidas).
     if TRAIN_META.exists() and TRAIN_LABELS.exists():
-        log.info("=== Split: TRAIN ===")
-        remaining = max_neg - total
-        if remaining > 0:
-            total += download_negatives_from_split(
-                TRAIN_META, TRAIN_LABELS, "stand_neg_train_",
-                img_out, lbl_out, code2name, remaining
-            )
+        log.info("=== Split: TRAIN (pool grande) ===")
+        total += download_negatives_from_split(
+            TRAIN_META, TRAIN_LABELS, "stand_neg_train_",
+            img_out, lbl_out, code2name, max_neg
+        )
+
+    # Luego validation para completar lo que falte
+    remaining = max_neg - total
+    if remaining > 0:
+        log.info("=== Split: VALIDATION ===")
+        total += download_negatives_from_split(
+            VAL_META, VAL_LABELS, "stand_neg_val_",
+            img_out, lbl_out, code2name, remaining
+        )
 
     log.info("================ RESUMEN ================")
     log.info(f"  Hard negatives stand añadidos: {total}")
