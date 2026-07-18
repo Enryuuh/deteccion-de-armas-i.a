@@ -51,22 +51,25 @@ TRAIN_LABELS= OI_BASE / "train" / "labels"
 # Clases de OIv7 que son hard negatives PERFECTOS para escenario stand
 # (visualmente confundibles con pistolas o presentes en stands)
 STAND_NEGATIVE_CLASSES = {
-    "Person",            # ~muy importante: gente en el stand
-    "Mobile phone",      # objeto frecuente en manos
-    "Remote control",    # silueta tipo pistola
-    "Telephone",
-    "Camera",            # cámaras de fotos
-    "Microphone",        # forma tubular
-    "Screwdriver",       # herramienta de mano
-    "Drill (Tool)",
-    "Hair dryer",        # pistola-like
-    "Stapler",
-    "Tablet computer",
-    "Laptop",
-    "Calculator",
-    "Headphones",
-    "Wallet",
-    "Watch",
+    # --- Personas y manos (lo mas importante) ---
+    "Person", "Human hand", "Human face", "Human arm", "Man", "Woman", "Boy", "Girl",
+    # --- Objetos de mano confundibles con pistolas ---
+    "Mobile phone", "Remote control", "Telephone", "Camera", "Microphone",
+    "Hair dryer", "Stapler", "Flashlight", "Torch",
+    # --- Herramientas (siluetas tipo arma) ---
+    "Screwdriver", "Drill (Tool)", "Hammer", "Wrench", "Ratchet (Device)",
+    "Tool", "Chisel", "Nail (Construction)",
+    # --- Electronica / oficina ---
+    "Tablet computer", "Laptop", "Calculator", "Headphones", "Computer keyboard",
+    "Computer mouse", "Pen", "Marker",
+    # --- Objetos personales ---
+    "Wallet", "Watch", "Sunglasses", "Glasses", "Handbag", "Backpack",
+    "Umbrella", "Book", "Bottle", "Cup", "Coffee cup",
+    # --- Utensilios de cocina NO cortantes (evitamos cuchillo/tijera:
+    #     son cortantes y confundirian al modelo con la clase 'knife') ---
+    "Fork", "Spoon",
+    # --- Mobiliario / stand ---
+    "Chair", "Table", "Desk", "Tin can", "Box",
 }
 
 # Clases que NO deben estar en la imagen (armas)
@@ -75,8 +78,8 @@ WEAPON_CLASSES = {
     "Weapon", "Pistol", "Submachine gun", "Tank",
 }
 
-MAX_NEGATIVES = 2500
-DOWNLOAD_WORKERS = 8
+MAX_NEGATIVES = 25000        # ampliado (antes 2500); ajustable con --max
+DOWNLOAD_WORKERS = 12
 
 
 def load_class_map(classes_csv):
@@ -156,6 +159,13 @@ def download_negatives_from_split(split_meta, split_labels, prefix, img_out, lbl
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser(description="Descarga hard negatives (objetos que NO son armas)")
+    ap.add_argument("--max", type=int, default=MAX_NEGATIVES,
+                    help=f"maximo de negativos a descargar (default {MAX_NEGATIVES})")
+    args = ap.parse_args()
+    max_neg = args.max
+
     processed = REPO / "data" / "processed"
     img_out = processed / "images" / "train"
     lbl_out = processed / "labels" / "train"
@@ -178,13 +188,13 @@ def main():
     log.info("=== Split: VALIDATION ===")
     total += download_negatives_from_split(
         VAL_META, VAL_LABELS, "stand_neg_val_",
-        img_out, lbl_out, code2name, MAX_NEGATIVES // 2
+        img_out, lbl_out, code2name, max_neg // 2
     )
 
     # Después train si hay
     if TRAIN_META.exists() and TRAIN_LABELS.exists():
         log.info("=== Split: TRAIN ===")
-        remaining = MAX_NEGATIVES - total
+        remaining = max_neg - total
         if remaining > 0:
             total += download_negatives_from_split(
                 TRAIN_META, TRAIN_LABELS, "stand_neg_train_",
