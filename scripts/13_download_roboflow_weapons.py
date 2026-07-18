@@ -25,26 +25,31 @@ RF_CACHE.mkdir(parents=True, exist_ok=True)
 
 # Datasets a descargar: (workspace, project, version, prefix, class_map)
 # class_map: nombre original (en data.yaml del dataset) -> nuestra clase YOLO
+# Mapa de clases amplio (nombre original en el data.yaml -> nuestra clase).
+# Lo que no este aqui se descarta (p.ej. person, phone, grenade).
+WEAPON_MAP = {
+    "Knife": "knife", "knife": "knife", "Cuchillo": "knife",
+    "Pistol": "handgun", "pistol": "handgun", "Handgun": "handgun", "handgun": "handgun",
+    "Gun": "handgun", "gun": "handgun", "Pistola": "handgun", "Revolver": "handgun",
+    "Rifle": "long_gun", "rifle": "long_gun", "Shotgun": "long_gun", "shotgun": "long_gun",
+    "Long gun": "long_gun", "long_gun": "long_gun", "Escopeta": "long_gun",
+    "Machine gun": "long_gun", "Assault rifle": "long_gun", "Sniper": "long_gun",
+}
+
 DATASETS = [
     {
-        "workspace":  "roboflow-100",
-        "project":    "weapons-cope2",
+        "workspace":  "pistolrifle",
+        "project":    "pistol-rifle-knife",
         "version":    2,
-        "prefix":     "rf_w100_",
-        "class_map":  {
-            "Knife": "knife", "knife": "knife",
-            "Pistol": "handgun", "pistol": "handgun", "Handgun": "handgun", "handgun": "handgun",
-            "Rifle": "long_gun", "rifle": "long_gun",
-            "Shotgun": "long_gun", "shotgun": "long_gun",
-            "Gun": "handgun", "gun": "handgun",
-        },
+        "prefix":     "rf_prk_",
+        "class_map":  WEAPON_MAP,
     },
     {
-        "workspace":  "joseph-nelson",
-        "project":    "knives",
-        "version":    1,
-        "prefix":     "rf_jknife_",
-        "class_map":  {"knife": "knife", "Knife": "knife"},
+        "workspace":  "weapon-detection-qktol",
+        "project":    "weapon-detection-ipl7p",
+        "version":    7,
+        "prefix":     "rf_wd_",
+        "class_map":  WEAPON_MAP,
     },
 ]
 
