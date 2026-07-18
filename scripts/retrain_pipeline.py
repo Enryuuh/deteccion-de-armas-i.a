@@ -81,6 +81,24 @@ def main():
     ap.add_argument("--epochs", type=int, default=30)
     args = ap.parse_args()
 
+    # Candado anti-doble-ejecucion (evita 2 entrenamientos a la vez -> OOM)
+    lock = REPO / "models" / ".retrain.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    if lock.exists():
+        log.error("Ya hay un pipeline corriendo (existe %s). Abortando.", lock)
+        return
+    lock.write_text(datetime.now().isoformat(), encoding="utf-8")
+
+    try:
+        _run(args)
+    finally:
+        try:
+            lock.unlink()
+        except Exception:
+            pass
+
+
+def _run(args):
     t0 = datetime.now()
     log.info("===== PIPELINE DE REENTRENAMIENTO v5 =====")
 
