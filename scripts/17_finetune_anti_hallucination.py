@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--nano", action="store_true", help="Fine-tune el nano para Pi5")
     parser.add_argument("--epochs", type=int, default=30, help="Epochs totales")
     parser.add_argument("--imgsz", type=int, default=None, help="Override imgsz")
+    parser.add_argument("--name", default=None, help="Nombre del run (override, ej. yolov8s_v5)")
     args = parser.parse_args()
 
     weights = WEIGHTS_NANO if args.nano else WEIGHTS_SMALL
@@ -51,7 +52,7 @@ def main():
 
     imgsz = args.imgsz or (416 if args.nano else 640)
     batch = 24 if args.nano else 8
-    run_name = "yolov8n_v4_pose_negs" if args.nano else "yolov8s_v4_pose_negs"
+    run_name = args.name or ("yolov8n_v4_pose_negs" if args.nano else "yolov8s_v4_pose_negs")
 
     log.info(f"Fine-tune desde: {weights}")
     log.info(f"  imgsz={imgsz} | batch={batch} | epochs={args.epochs}")
