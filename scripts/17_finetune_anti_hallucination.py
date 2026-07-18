@@ -66,7 +66,7 @@ def main():
         epochs      = args.epochs,
         imgsz       = imgsz,
         batch       = batch,
-        workers     = 4,
+        workers     = 12,          # 16 cores disponibles: alimentar bien la GPU
         device      = 0,
         optimizer   = "AdamW",
 
@@ -91,7 +91,9 @@ def main():
         dfl         = 1.5,           # default
 
         amp         = True,
-        cache       = "disk",
+        # cache=False: el dataset esta en un HDD lento. Leer JPGs pequenos (~3GB,
+        # que el SO cachea en RAM) es mas rapido que releer 28GB de .npy del HDD.
+        cache       = False,
         seed        = 42,
         project     = "models/yolov8_weapons",
         name        = f"weapons/{run_name}",
