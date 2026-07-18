@@ -145,6 +145,12 @@ def enroll_from_webcam(fr: FaceRecognizer, name: str, db_path: Path, cam_index: 
     if not shots:
         logger.error("No se capturo ninguna foto.")
         return
+    # Guardar las capturas en faces_db/<nombre>/ (registro visual)
+    shots_dir = Path("faces_db") / name
+    shots_dir.mkdir(parents=True, exist_ok=True)
+    for i, img in enumerate(shots, 1):
+        cv2.imwrite(str(shots_dir / f"captura_{i:02d}.jpg"), img)
+    logger.info("Fotos guardadas en %s", shots_dir)
     names, embeds = load_existing_db(db_path)
     mean = mean_embedding(fr, shots, name)
     if mean is not None:

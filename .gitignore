@@ -46,8 +46,12 @@ runs/
 *.torchscript
 
 # === Datos biometricos — NUNCA subir a git ===
-faces_db/                 # fotos originales de personas para matricular
-models/faces/             # base de embeddings (face_db.npz)
+# (los comentarios van en su propia linea; en .gitignore un comentario
+#  al final de un patron NO se ignora y rompe la regla)
+# faces_db/     -> fotos originales de personas para matricular
+# models/faces/ -> base de embeddings (face_db.npz)
+faces_db/
+models/faces/
 
 # === Logs y temporales ===
 *.log
