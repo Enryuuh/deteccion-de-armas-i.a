@@ -51,7 +51,8 @@ def main():
         raise FileNotFoundError(f"No existe {data_yaml}")
 
     imgsz = args.imgsz or (416 if args.nano else 640)
-    batch = 24 if args.nano else 8
+    # GPU 4060 8GB: batch 16 grande (32 daba OOM a 640px) / 48 nano (416px)
+    batch = 48 if args.nano else 16
     run_name = args.name or ("yolov8n_v4_pose_negs" if args.nano else "yolov8s_v4_pose_negs")
 
     log.info(f"Fine-tune desde: {weights}")
@@ -66,7 +67,7 @@ def main():
         epochs      = args.epochs,
         imgsz       = imgsz,
         batch       = batch,
-        workers     = 12,          # 16 cores disponibles: alimentar bien la GPU
+        workers     = 16,          # 16 cores: maxima paralelizacion de carga
         device      = 0,
         optimizer   = "AdamW",
 

@@ -34,7 +34,8 @@ NANO_NAME  = "yolov8n_v5_moredata"
 
 # Rutas de salida de los runs (script 17 usa project=models/yolov8_weapons, name=weapons/<run>)
 def run_weights(name):
-    return REPO / "models" / "yolov8_weapons" / "weapons" / name / "weights" / "best.pt"
+    # ultralytics antepone runs/detect/ al project relativo
+    return REPO / "runs" / "detect" / "models" / "yolov8_weapons" / "weapons" / name / "weights" / "best.pt"
 
 V4_SMALL = REPO / "runs/detect/models/yolov8_weapons/weapons/yolov8s_v4_pose_negs/weights/best.pt"
 V4_NANO  = REPO / "runs/detect/models/yolov8_weapons/weapons/yolov8n_v4_pose_negs/weights/best.pt"
@@ -102,15 +103,23 @@ def _run(args):
     t0 = datetime.now()
     log.info("===== PIPELINE DE REENTRENAMIENTO v5 =====")
 
-    # 1. Entrenar GRANDE (yolov8s)
-    log.info(">>> [1/5] Fine-tune modelo GRANDE (yolov8s) -> %s", SMALL_NAME)
-    ok_small = sh([PY, "scripts/17_finetune_anti_hallucination.py",
-                   "--name", SMALL_NAME, "--epochs", str(args.epochs)])
+    # 1. Entrenar GRANDE (yolov8s) — saltar si ya existe (evita re-entrenar)
+    if run_weights(SMALL_NAME).exists():
+        log.info(">>> [1/5] GRANDE ya entrenado (%s), se salta.", SMALL_NAME)
+        ok_small = True
+    else:
+        log.info(">>> [1/5] Fine-tune modelo GRANDE (yolov8s) -> %s", SMALL_NAME)
+        ok_small = sh([PY, "scripts/17_finetune_anti_hallucination.py",
+                       "--name", SMALL_NAME, "--epochs", str(args.epochs)])
 
-    # 2. Entrenar NANO (yolov8n) para la Pi
-    log.info(">>> [2/5] Fine-tune modelo NANO (yolov8n) -> %s", NANO_NAME)
-    ok_nano = sh([PY, "scripts/17_finetune_anti_hallucination.py", "--nano",
-                  "--name", NANO_NAME, "--epochs", str(args.epochs)])
+    # 2. Entrenar NANO (yolov8n) para la Pi — saltar si ya existe
+    if run_weights(NANO_NAME).exists():
+        log.info(">>> [2/5] NANO ya entrenado (%s), se salta.", NANO_NAME)
+        ok_nano = True
+    else:
+        log.info(">>> [2/5] Fine-tune modelo NANO (yolov8n) -> %s", NANO_NAME)
+        ok_nano = sh([PY, "scripts/17_finetune_anti_hallucination.py", "--nano",
+                      "--name", NANO_NAME, "--epochs", str(args.epochs)])
 
     # 3. Evaluar v5 vs v4
     log.info(">>> [3/5] Evaluando en test set...")
