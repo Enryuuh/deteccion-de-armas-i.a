@@ -57,7 +57,7 @@ training:
   hsv_v: 0.5                        # subido: más variación de brillo (luz/sombra)
 
 inference:
-  weights: "runs/detect/models/yolov8_weapons/weapons/yolov8s_v4_pose_negs/weights/best.pt"
+  weights: "runs/detect/models/yolov8_weapons/weapons/yolov8s_v5_moredata/weights/best.pt"
   confidence_threshold: 0.30      # base
   class_thresholds:               # umbral específico por clase
     knife:    0.40                # con dataset HF debería detectar mejor knife
