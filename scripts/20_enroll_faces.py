@@ -34,6 +34,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from utils.face_recognition import FaceRecognizer
+from utils.visualization import force_window_focus
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -122,7 +123,10 @@ def enroll_from_webcam(fr: FaceRecognizer, name: str, db_path: Path, cam_index: 
         logger.error("No se pudo abrir la camara %d", cam_index)
         return
     shots: list[np.ndarray] = []
+    win_name = "Matricular cara"
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
     logger.info("Capturando a '%s'. ESPACIO=tomar foto, Q=terminar. Toma 3-5.", name)
+    frame_count = 0
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -130,7 +134,12 @@ def enroll_from_webcam(fr: FaceRecognizer, name: str, db_path: Path, cam_index: 
         preview = frame.copy()
         cv2.putText(preview, f"{name}  fotos: {len(shots)}  [ESPACIO] tomar  [Q] fin",
                     (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.imshow("Matricular cara", preview)
+        cv2.imshow(win_name, preview)
+        # Forzar foco en los primeros frames (la ventana puede abrirse sin foco
+        # si el proceso fue lanzado desde otra app, ej. la GUI de Tkinter).
+        frame_count += 1
+        if frame_count <= 15:
+            force_window_focus(win_name)
         k = cv2.waitKey(1) & 0xFF
         if k == ord(" "):
             if fr.embed(frame) is not None:

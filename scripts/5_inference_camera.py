@@ -27,7 +27,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from utils.visualization import draw_detections, draw_hud, draw_faces
+from utils.visualization import draw_detections, draw_hud, draw_faces, force_window_focus
 from utils.alerts import AlertSystem
 from utils.temporal_filter import TemporalDetectionFilter
 from utils.plausibility_filter import PlausibilityFilter
@@ -214,6 +214,10 @@ def main():
                 dashboard_fn(frame, fps_avg, weapon_detected, names)
 
             cv2.imshow("Deteccion de Armas", frame)
+            # Forzar foco en los primeros frames (por si se lanzo desde la GUI
+            # de Tkinter, la ventana puede abrirse sin foco de teclado).
+            if frame_idx <= 15:
+                force_window_focus("Deteccion de Armas")
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord("q")):
                 break

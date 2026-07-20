@@ -5,8 +5,57 @@ HUD minimalista + bounding boxes con etiquetas. Optimizado para correr
 a 30+ FPS sin copias innecesarias del frame.
 """
 
+import sys
+
 import cv2
 import numpy as np
+
+
+def force_window_focus(window_name: str):
+    """En Windows, una ventana de cv2 abierta desde un subproceso (ej. lanzada
+    por la GUI de Tkinter) puede no recibir el foco del teclado -> las teclas
+    (ESPACIO, Q, ESC) no responden aunque la ventana se vea. Windows bloquea
+    a proposito que un proceso en segundo plano robe el foco con un simple
+    SetForegroundWindow; hace falta "adjuntar" temporalmente el input del
+    hilo actual al hilo de la ventana en primer plano (truco estandar de la
+    API de Windows). Llamar en los primeros frames tras crear la ventana."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        user32.FindWindowW.restype = wintypes.HWND
+        user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+        hwnd = user32.FindWindowW(None, window_name)
+        if not hwnd:
+            return
+
+        fg_hwnd = user32.GetForegroundWindow()
+        current_tid = kernel32.GetCurrentThreadId()
+        fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
+
+        if fg_tid and fg_tid != current_tid:
+            user32.AttachThreadInput(fg_tid, current_tid, True)
+            user32.BringWindowToTop(hwnd)
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+            user32.AttachThreadInput(fg_tid, current_tid, False)
+        else:
+            user32.BringWindowToTop(hwnd)
+            user32.ShowWindow(hwnd, 9)
+            user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
 
 # Paleta por clase (BGR)
 CLASS_COLORS = {
